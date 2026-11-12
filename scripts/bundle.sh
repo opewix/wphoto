@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 swift build -c release
 APP="build/WPhoto.app"
-VERSION="${VERSION:-0.1}"
+VERSION="${VERSION:-0.3}"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/en.lproj" "$APP/Contents/Resources/ru.lproj"
 cp .build/release/WPhoto "$APP/Contents/MacOS/WPhoto"
@@ -12,7 +12,7 @@ cp .build/release/WPhoto "$APP/Contents/MacOS/WPhoto"
 # Иконка программы: рисуем кодом и собираем .icns.
 ICONSET=build/AppIcon.iconset
 rm -rf "$ICONSET"
-swiftc -O -o build/appicon scripts/appicon/main.swift Sources/WPhoto/Theme/Glyphs.swift
+swiftc -O -o build/appicon scripts/appicon/main.swift
 build/appicon "$ICONSET"
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 
