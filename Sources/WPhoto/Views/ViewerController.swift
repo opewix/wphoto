@@ -311,7 +311,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
         case .delete: moveToTrash(nil)
         case .print: printDocument(nil)
         case .copyTo: makeCopy(nil)
-        case .edit(let view): popUp(openWithMenu(), under: view)
+        case .edit: editPicture(nil)
         }
         window?.makeFirstResponder(canvas)
     }
@@ -324,6 +324,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
             guard let url = shownURL else { return }
             NSSharingServicePicker(items: [url]).show(relativeTo: view.bounds, of: view, preferredEdge: .minY)
         case .open(let view): popUp(openWithMenu(), under: view)
+        case .tools(let view): popUp(Menus.toolsMenu(), under: view)
         }
     }
 
@@ -339,7 +340,8 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
         }
         add(L.t("Открыть…", "Open…"), #selector(openDocumentHere(_:)))
         menu.addItem(.separator())
-        add(L.t("Сохранить копию…", "Make a Copy…"), #selector(makeCopy(_:)))
+        add(L.t("Сохранить как…", "Save As…"), #selector(saveAs(_:)))
+        add(L.t("Дублировать файл…", "Duplicate File…"), #selector(makeCopy(_:)))
         add(L.t("Копировать", "Copy"), #selector(copy(_:)))
         add(L.t("Переместить в Корзину", "Move to Trash"), #selector(moveToTrash(_:)))
         menu.addItem(.separator())
@@ -621,6 +623,50 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
         operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
 
+    // MARK: - Правка
+
+    /// Окно правки для текущего рисунка; поворот, сделанный только на экране, переносится в него.
+    @discardableResult
+    private func openEditor() -> EditorController? {
+        guard let url = shownURL else { return nil }
+        return EditorController.open(url, quarterTurns: unsavedRotation[url] ?? 0) { [weak self] saved in
+            self?.showSaved(saved)
+        }
+    }
+
+    /// Сохранённая копия из той же папки — сразу показать её.
+    private func showSaved(_ url: URL) {
+        guard let list, list.folder?.standardizedFileURL.path == url.deletingLastPathComponent().standardizedFileURL.path else { return }
+        list.insert(url)
+        showCurrent()
+    }
+
+    @objc func editPicture(_ sender: Any?) { openEditor() }
+    @objc func selectEditTool(_ sender: Any?) { openEditor()?.selectEditTool(sender) }
+    @objc func showResize(_ sender: Any?) { openEditor()?.showResize(sender) }
+    @objc func showAdjust(_ sender: Any?) { openEditor()?.showAdjust(sender) }
+    @objc func flipHorizontal(_ sender: Any?) { openEditor()?.flipHorizontal(sender) }
+    @objc func flipVertical(_ sender: Any?) { openEditor()?.flipVertical(sender) }
+    @objc func applyFilter(_ sender: Any?) { openEditor()?.applyFilter(sender) }
+
+    /// «Сохранить как…» без правок — копия в другом формате.
+    @objc func saveAs(_ sender: Any?) {
+        guard let url = shownURL, let window else { return }
+        let base = url.deletingPathExtension().lastPathComponent
+        ImageExporter.runSavePanel(for: window, original: url, suggestedBase: base, edited: false) { [weak self] target, format, quality in
+            guard let self, let image = self.fullImage() else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = Result { try ImageExporter.write(image, to: target, format: format, quality: quality, metadataFrom: url) }
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success: self.showSaved(target)
+                    case .failure(let error): NSAlert(error: error).beginSheetModal(for: window)
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Слайд-шоу
 
     @objc func startSlideshow(_ sender: Any?) {
@@ -656,6 +702,10 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
             return hasImage && !canvas.isFit
         case #selector(actualSize(_:)):
             return hasImage && canvas.currentZoom != 1
+        case #selector(editPicture(_:)), #selector(selectEditTool(_:)), #selector(showResize(_:)), #selector(showAdjust(_:)),
+             #selector(flipHorizontal(_:)), #selector(flipVertical(_:)), #selector(applyFilter(_:)), #selector(saveAs(_:)):
+            item.state = .off
+            return hasImage
         case #selector(moveToTrash(_:)), #selector(makeCopy(_:)), #selector(showInFinder(_:)),
              #selector(showProperties(_:)), #selector(setDesktopPicture(_:)):
             return shownURL != nil

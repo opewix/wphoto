@@ -9,6 +9,7 @@ enum Menus {
         main.addItem(submenu(fileMenu()))
         main.addItem(submenu(editMenu()))
         main.addItem(submenu(viewMenu()))
+        main.addItem(submenu(toolsMenu()))
         let window = windowMenu()
         main.addItem(submenu(window))
         NSApp.windowsMenu = window
@@ -50,7 +51,8 @@ enum Menus {
         add(menu, L.t("Новое окно", "New Window"), #selector(AppDelegate.newWindow(_:)), "n")
         add(menu, L.t("Открыть…", "Open…"), #selector(AppDelegate.openDocument(_:)), "o")
         menu.addItem(.separator())
-        add(menu, L.t("Сохранить копию…", "Make a Copy…"), #selector(ViewerController.makeCopy(_:)), "s", [.command, .shift])
+        add(menu, L.t("Сохранить как…", "Save As…"), #selector(EditorController.saveAs(_:)), "s")
+        add(menu, L.t("Дублировать файл…", "Duplicate File…"), #selector(ViewerController.makeCopy(_:)), "s", [.command, .shift])
         add(menu, L.t("Показать в Finder", "Show in Finder"), #selector(ViewerController.showInFinder(_:)), "r", [.command, .shift])
         add(menu, L.t("Свойства", "Properties"), #selector(ViewerController.showProperties(_:)), "i")
         add(menu, L.t("Сделать фоном рабочего стола", "Set as Desktop Picture"), #selector(ViewerController.setDesktopPicture(_:)))
@@ -98,6 +100,43 @@ enum Menus {
         add(wheel, L.t("Листает рисунки", "Switches Pictures"), #selector(AppDelegate.setWheel(_:)), represented: WheelAction.navigate.rawValue)
         menu.addItem(submenu(wheel))
         menu.addItem(.separator())
+        return menu
+    }
+
+    /// «Инструменты»: из окна просмотра открывают окно правки с нужным инструментом,
+    /// в окне правки — переключают инструмент. Сохраняется всегда копия.
+    static func toolsMenu() -> NSMenu {
+        let menu = NSMenu(title: L.t("Инструменты", "Tools"))
+        add(menu, L.t("Открыть в редакторе", "Edit Picture"), #selector(EditorController.editPicture(_:)), "e")
+        menu.addItem(.separator())
+        func tool(_ t: EditTool) {
+            add(menu, t.title, #selector(EditorController.selectEditTool(_:)), represented: t.rawValue)
+        }
+        tool(.crop)
+        add(menu, L.t("Изменить размер…", "Resize…"), #selector(EditorController.showResize(_:)), "r", [.command, .option])
+        add(menu, L.t("Отразить по горизонтали", "Flip Horizontal"), #selector(EditorController.flipHorizontal(_:)))
+        add(menu, L.t("Отразить по вертикали", "Flip Vertical"), #selector(EditorController.flipVertical(_:)))
+        menu.addItem(.separator())
+        for t in [EditTool.pen, .brush, .highlighter] { tool(t) }
+        menu.addItem(.separator())
+        for t in [EditTool.rectangle, .ellipse, .line, .arrow, .text] { tool(t) }
+        menu.addItem(.separator())
+        for t in [EditTool.blur, .pixelate] { tool(t) }
+        menu.addItem(.separator())
+        add(menu, L.t("Коррекция цвета…", "Adjust Colors…"), #selector(EditorController.showAdjust(_:)), "c", [.command, .option])
+        let filters = filtersMenu()
+        filters.title = L.t("Фильтры", "Filters")
+        menu.addItem(submenu(filters))
+        menu.addItem(.separator())
+        add(menu, L.t("Сохранить как…", "Save As…"), #selector(EditorController.saveAs(_:)))
+        return menu
+    }
+
+    static func filtersMenu() -> NSMenu {
+        let menu = NSMenu(title: L.t("Фильтры", "Filters"))
+        for filter in QuickFilter.allCases {
+            add(menu, filter.title, #selector(EditorController.applyFilter(_:)), represented: filter.rawValue)
+        }
         return menu
     }
 

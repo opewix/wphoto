@@ -126,7 +126,7 @@ final class ControlBar: NSView {
         let delete = button(.delete, s, 18, L.t("Удалить (Delete)", "Delete (Delete)")) { _ in .delete }
         let print = button(.print, s, g, L.t("Печать (⌘P)", "Print (⌘P)")) { _ in .print }
         let copy = button(.copyTo, s, g, L.t("Сохранить копию (⇧⌘S)", "Copy To (⇧⌘S)")) { _ in .copyTo }
-        let edit = button(.edit, s, g, L.t("Открыть в программе", "Open in another program")) { .edit($0) }
+        let edit = button(.edit, s, g, L.t("Правка (⌘E)", "Edit (⌘E)")) { .edit($0) }
         groups = [[prev, next], [fit, actual], [show], [zin, zout], [right, left], [delete, print, copy, edit]]
         navigation = [prev, next, show]
         imageButtons = [fit, actual, zin, zout, right, left, delete, print, copy, edit]
@@ -287,10 +287,10 @@ final class CommandButton: NSView {
 }
 
 enum TopCommand {
-    case file(NSView), print, share(NSView), open(NSView)
+    case file(NSView), print, share(NSView), open(NSView), tools(NSView)
 }
 
-/// Верхняя панель Vista/7: «Файл ▾», «Печать», «Поделиться», «Открыть ▾».
+/// Верхняя панель Vista/7: «Файл ▾», «Печать», «Поделиться», «Открыть ▾», «Инструменты ▾».
 final class CommandBar: NSView {
     private var buttons: [CommandButton] = []
 
@@ -301,6 +301,7 @@ final class CommandBar: NSView {
             (L.t("Печать", "Print"), false, { _ in .print }),
             (L.t("Поделиться", "Share"), false, { .share($0) }),
             (L.t("Открыть", "Open"), true, { .open($0) }),
+            (L.t("Инструменты", "Tools"), true, { .tools($0) }),
         ]
         for (title, hasMenu, command) in items {
             let b = CommandButton(title: title, hasMenu: hasMenu)

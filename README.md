@@ -25,7 +25,14 @@ or from Windows XP, if you prefer.
 - **Delete** moves the file to the Trash (with a confirmation you can turn off); ⌘Z puts it back.
 - **Slide show** (⇧⌘F, F5): full screen, crossfade, arrows, Space to pause; right-click for speed,
   shuffle and loop.
-- **File / Print / Share / Open** bar: make a copy, copy to the clipboard, show in Finder,
+- **Editing tools** (Tools menu, ⌘E): crop with aspect presets, resize with or without keeping
+  proportions, rotate and flip, pencil, brush and highlighter, rectangle, ellipse, line, arrow and
+  text, blur or pixelate an area, color adjustments (brightness, contrast, saturation, hue,
+  exposure, warmth, vibrance, sharpness) with live preview, one-click filters (auto enhance,
+  black & white, sepia, invert, sharpen, vignette), unlimited undo. See [below](#editing).
+- **Save As** another format: JPEG, PNG, HEIC, AVIF, TIFF, BMP, GIF, JPEG 2000 (whatever your macOS
+  can write), with a quality slider. Camera data, date and location are kept.
+- **File / Print / Share / Open / Tools** bar: make a copy, copy to the clipboard, show in Finder,
   properties with camera data, set as desktop picture, print, share, open with another app.
 - **Two themes** (View → Theme): Windows Vista / 7 and Windows XP.
 - **One click to make it the default viewer** — see [below](#make-wphoto-your-default-picture-viewer).
@@ -63,6 +70,25 @@ change, click **Use "WPhoto"**.
 
 To go back, do the same and pick **Preview** (or any other app).
 
+## Editing
+
+**Tools → Edit Picture** (⌘E), or any tool from the **Tools** menu, opens the picture in an editor
+window. Edits never touch the original: **Save a Copy…** writes a new file (`photo (edited).jpg`
+by default) in the format you choose, and the viewer jumps to it.
+
+![The editor](reference/editor.png)
+
+| In the editor | |
+|---|---|
+| C · P · B · H | crop · pencil · brush · highlighter |
+| R · E · L · A · T | rectangle · ellipse · line · arrow · text |
+| U · X | blur area · pixelate area |
+| Shift while drawing a shape | square, circle, 45° lines |
+| Return · Esc | apply the crop · clear the crop frame |
+| ⌘Z · ⇧⌘Z | undo · redo |
+| ⌥⌘R · ⌥⌘C | resize · adjust colors |
+| ⌘S | save a copy |
+
 ## Keyboard
 
 | Keys | Action |
@@ -75,7 +101,9 @@ To go back, do the same and pick **Preview** (or any other app).
 | ⌘R / ⌘L | rotate clockwise / counterclockwise |
 | Delete (⌘⌫) · ⌘Z | move to Trash · undo |
 | ⇧⌘F, F5 · Esc | slide show · exit slide show or full screen |
-| ⌘C · ⇧⌘S · ⌘I · ⇧⌘R · ⌘P | copy · make a copy · properties · show in Finder · print |
+| ⌘E | edit picture |
+| ⌘C · ⌘S · ⇧⌘S | copy · save as another format · duplicate the file |
+| ⌘I · ⇧⌘R · ⌘P | properties · show in Finder · print |
 
 ## Build from source
 
