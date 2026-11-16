@@ -125,6 +125,8 @@ final class ImageCanvas: NSView {
     override func layout() {
         super.layout()
         layoutImage()
+        // Слой перерисовывается только по запросу: без него подпись пустого окна растягивалась бы.
+        if image == nil, message != nil { needsDisplay = true }
     }
 
     override func viewDidChangeBackingProperties() {
@@ -306,7 +308,7 @@ final class ImageCanvas: NSView {
         let style = NSMutableParagraphStyle()
         style.alignment = .center
         let text = NSAttributedString(string: message, attributes: [
-            .font: NSFont.systemFont(ofSize: 14), .foregroundColor: Theme.messageColor, .paragraphStyle: style,
+            .font: Theme.uiFont(14), .foregroundColor: Theme.messageColor, .paragraphStyle: style,
         ])
         let height = text.boundingRect(with: NSSize(width: bounds.width - 40, height: 1000),
                                        options: .usesLineFragmentOrigin).height

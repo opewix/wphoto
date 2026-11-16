@@ -15,6 +15,8 @@ final class SlideshowController: NSObject {
     private var savedOptions: NSApplication.PresentationOptions = []
     private let onExit: (URL?) -> Void
     private let screen: NSScreen
+    /// Пока идёт показ, экран не гаснет и не уходит в заставку: клавиш и мыши никто не трогает.
+    private var awake: NSObjectProtocol?
 
     init(urls: [URL], start: Int, screen: NSScreen, onExit: @escaping (URL?) -> Void) {
         source = urls
@@ -40,6 +42,8 @@ final class SlideshowController: NSObject {
         if !savedOptions.contains(.fullScreen) {
             NSApp.presentationOptions = [.hideDock, .hideMenuBar]
         }
+        awake = ProcessInfo.processInfo.beginActivity(options: [.idleDisplaySleepDisabled, .userInitiated],
+                                                      reason: "WPhoto slide show")
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
         NSCursor.setHiddenUntilMouseMoves(true)
@@ -57,7 +61,7 @@ final class SlideshowController: NSObject {
         let mine = token
         timer?.invalidate()
         guard let url = current else { return }
-        ImageLoader.shared.load(url, fit: target) { [weak self] image in
+        ImageLoader.shared.load(url, fit: target, owner: self) { [weak self] image in
             guard let self, mine == self.token, !self.exiting else { return }
             self.view.display(image, animated: animated)
             self.scheduleNext()
@@ -99,6 +103,9 @@ final class SlideshowController: NSObject {
         guard !exiting else { return }
         exiting = true
         timer?.invalidate()
+        if let awake { ProcessInfo.processInfo.endActivity(awake) }
+        awake = nil
+        ImageLoader.shared.forget(self)
         if !savedOptions.contains(.fullScreen) {
             NSApp.presentationOptions = savedOptions
         }

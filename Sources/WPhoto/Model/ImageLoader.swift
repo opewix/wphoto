@@ -39,8 +39,10 @@ final class ImageLoader {
         return queue
     }()
     private let lock = NSLock()
-    private var latestCurrent = ""
-    private var latestFull = ""
+    /// Последний запрос каждого заказчика (окно просмотра, слайд-шоу): у общего на всех
+    /// запрос одного окна отменял бы запрос другого, и то осталось бы с миниатюрой.
+    private var latestCurrent: [ObjectIdentifier: String] = [:]
+    private var latestFull: [ObjectIdentifier: String] = [:]
 
     private init() {
         cache.totalCostLimit = 1_200_000_000
@@ -70,16 +72,17 @@ final class ImageLoader {
     // MARK: - Загрузка
 
     /// Текущий рисунок. Если пользователь успел перелистнуть дальше, устаревшие запросы
-    /// пропускаются, и их `completion` не вызывается.
-    func load(_ url: URL, fit: CGSize, completion: @escaping (DecodedImage?) -> Void) {
+    /// того же заказчика `owner` пропускаются, и их `completion` не вызывается.
+    func load(_ url: URL, fit: CGSize, owner: AnyObject, completion: @escaping (DecodedImage?) -> Void) {
+        let owner = ObjectIdentifier(owner)
         if let image = cached(url, fit: fit) {
             completion(image)
             return
         }
         let tag = "\(url.path)|\(fit)"
-        lock.withLock { latestCurrent = tag }
+        lock.withLock { latestCurrent[owner] = tag }
         currentQueue.async { [weak self] in
-            guard let self, self.lock.withLock({ self.latestCurrent == tag }) else { return }
+            guard let self, self.lock.withLock({ self.latestCurrent[owner] == tag }) else { return }
             if let image = self.cached(url, fit: fit) {
                 DispatchQueue.main.async { completion(image) }
                 return
@@ -90,15 +93,16 @@ final class ImageLoader {
         }
     }
 
-    func loadFull(_ url: URL, completion: @escaping (DecodedImage?) -> Void) {
+    func loadFull(_ url: URL, owner: AnyObject, completion: @escaping (DecodedImage?) -> Void) {
+        let owner = ObjectIdentifier(owner)
         if let image = cachedFull(url) {
             completion(image)
             return
         }
         let tag = url.path
-        lock.withLock { latestFull = tag }
+        lock.withLock { latestFull[owner] = tag }
         fullQueue.async { [weak self] in
-            guard let self, self.lock.withLock({ self.latestFull == tag }) else { return }
+            guard let self, self.lock.withLock({ self.latestFull[owner] == tag }) else { return }
             let image = Self.decode(url, fit: nil)
             if let image { self.store(image, url: url, fit: nil) }
             DispatchQueue.main.async { completion(image) }
@@ -114,6 +118,15 @@ final class ImageLoader {
                       let image = Self.decode(url, fit: fit) else { return }
                 self.store(image, url: url, fit: fit)
             }
+        }
+    }
+
+    /// Заказчик закрылся — его запись больше не нужна.
+    func forget(_ owner: AnyObject) {
+        let owner = ObjectIdentifier(owner)
+        lock.withLock {
+            latestCurrent[owner] = nil
+            latestFull[owner] = nil
         }
     }
 
@@ -185,6 +198,15 @@ final class ImageLoader {
         guard abs(aspect - full.width / full.height) < 0.03 else { return nil }
         return DecodedImage(cgImage: thumb, fullSize: full, isFull: false, isPreview: true, stamp: stamp)
     }
+}
+
+/// Один ли это файл на диске. Пути сравнивать нельзя: на диске без учёта регистра «Фото.JPG»
+/// и «фото.jpg» — один файл, как и путь через символическую ссылку.
+func sameFile(_ a: URL, _ b: URL) -> Bool {
+    if a.standardizedFileURL.path == b.standardizedFileURL.path { return true }
+    guard let x = try? a.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier,
+          let y = try? b.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier else { return false }
+    return x.isEqual(y)
 }
 
 extension CGImage {

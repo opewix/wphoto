@@ -120,6 +120,8 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
 
     func windowWillClose(_ notification: Notification) {
         zoomPopover?.close()
+        properties?.close()
+        ImageLoader.shared.forget(self)
         Self.controllers.removeAll { $0 === self }
     }
 
@@ -129,6 +131,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
         guard !urls.isEmpty else { return }
         let newList = ImageList(opening: urls)
         newList.onExternalChange = { [weak self] in self?.listChanged() }
+        newList.onFolderTouched = { [weak self] in self?.reloadIfFileChanged() }
         list = newList
         unsavedRotation = [:]
         for url in urls { NSDocumentController.shared.noteNewRecentDocumentURL(url) }
@@ -157,14 +160,16 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
             return
         }
         shownURL = url
-        let rotation = unsavedRotation[url] ?? 0
+        properties?.follow(url)
+        // Поворот, который ещё пишется в файл, — пока тоже на экране: в файле его ещё нет.
+        let rotation = (((unsavedRotation[url] ?? 0) + (savingTurns[url] ?? 0)) % 4 + 4) % 4
         let target = screenTarget
         if let image = ImageLoader.shared.cached(url, fit: target) {
             canvas.show(image, rotation: rotation)
         } else {
             canvas.message = nil
             canvas.show(ImageLoader.quickPreview(url), rotation: rotation)
-            ImageLoader.shared.load(url, fit: target) { [weak self] image in
+            ImageLoader.shared.load(url, fit: target, owner: self) { [weak self] image in
                 guard let self, current == self.token else { return }
                 if let image {
                     if let shown = self.canvas.image, shown.isPreview {
@@ -188,7 +193,16 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
             showCurrent()
         } else {
             updateChrome()
+            reloadIfFileChanged()
         }
+    }
+
+    /// Показанный файл переписали снаружи (сохранили из другой программы) — показать новое.
+    /// Свои повороты не в счёт: после записи рисунок перечитывается сам.
+    private func reloadIfFileChanged() {
+        guard let url = shownURL, (savingTurns[url] ?? 0) == 0, let image = canvas.image,
+              let stamp = ImageLoader.stamp(url), stamp != image.stamp else { return }
+        showCurrent()
     }
 
     private func updateChrome() {
@@ -214,7 +228,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
         guard fullRequestKey != key else { return }
         fullRequestKey = key
         let current = token
-        ImageLoader.shared.loadFull(url) { [weak self] full in
+        ImageLoader.shared.loadFull(url, owner: self) { [weak self] full in
             guard let self, current == self.token, let full,
                   full.stamp == self.canvas.image?.stamp else { return }
             self.canvas.replace(full)
@@ -277,7 +291,9 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
         case NSHomeFunctionKey: list?.select(0); showCurrent()
         case NSEndFunctionKey: list.map { $0.select($0.count - 1) }; showCurrent()
         case NSF5FunctionKey, NSF11FunctionKey: startSlideshow(nil)
-        case 0x7F, NSDeleteFunctionKey: moveToTrash(nil)
+        case 0x7F, NSDeleteFunctionKey:
+            // Удержание клавиши не удаляет рисунок за рисунком: без подтверждения так ушла бы вся папка.
+            if !event.isARepeat { moveToTrash(nil) }
         case 0x20: step(mods.contains(.shift) ? -1 : 1)
         case 0x1B:
             if window?.styleMask.contains(.fullScreen) == true { window?.toggleFullScreen(nil) } else { return false }
@@ -488,7 +504,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
             // Все повороты записаны — берём рисунок из файла, поворот на экране обнуляется.
             guard self.savingTurns[url] == 0, self.shownURL == url else { return }
             let current = self.token
-            ImageLoader.shared.load(url, fit: self.screenTarget) { [weak self] image in
+            ImageLoader.shared.load(url, fit: self.screenTarget, owner: self) { [weak self] image in
                 guard let self, current == self.token, self.savingTurns[url] == 0, let image else { return }
                 self.canvas.show(image, rotation: 0)
                 self.updateChrome()
@@ -497,7 +513,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
     }
 
     @objc func moveToTrash(_ sender: Any?) {
-        guard let url = shownURL, let window else { return }
+        guard let url = shownURL, let window, window.attachedSheet == nil else { return }
         guard Settings.confirmDelete else {
             trash(url)
             return
@@ -541,7 +557,9 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
             if let window { NSAlert(error: error).beginSheetModal(for: window) }
             return
         }
-        list?.insert(original)
+        // Список уже другой папки — файл вернулся на место, но показывать его здесь не нужно.
+        let folder = original.deletingLastPathComponent()
+        if let list, list.folder.map({ sameFile($0, folder) }) ?? true { list.insert(original) }
         window?.undoManager?.registerUndo(withTarget: self) { $0.trash(original) }
         window?.undoManager?.setActionName(L.t("перемещение в Корзину", "Move to Trash"))
         showCurrent()
@@ -574,11 +592,23 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
         panel.directoryURL = url.deletingLastPathComponent()
         panel.beginSheetModal(for: window) { response in
             guard response == .OK, let target = panel.url else { return }
+            // Выбрали сам оригинал («заменить») — копировать нечего; удалять его перед копированием нельзя.
+            guard !sameFile(target, url) else { return }
             do {
-                if FileManager.default.fileExists(atPath: target.path) {
-                    try FileManager.default.removeItem(at: target)
+                // Сначала копия рядом, потом подмена: не вышло скопировать — прежний файл цел.
+                let fm = FileManager.default
+                if fm.fileExists(atPath: target.path) {
+                    let temp = target.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).\(target.pathExtension)")
+                    do {
+                        try fm.copyItem(at: url, to: temp)
+                        _ = try fm.replaceItemAt(target, withItemAt: temp)
+                    } catch {
+                        try? fm.removeItem(at: temp)
+                        throw error
+                    }
+                } else {
+                    try fm.copyItem(at: url, to: target)
                 }
-                try FileManager.default.copyItem(at: url, to: target)
             } catch {
                 NSAlert(error: error).beginSheetModal(for: window)
             }
@@ -636,7 +666,7 @@ final class ViewerController: NSWindowController, NSWindowDelegate, ImageCanvasD
 
     /// Сохранённая копия из той же папки — сразу показать её.
     private func showSaved(_ url: URL) {
-        guard let list, list.folder?.standardizedFileURL.path == url.deletingLastPathComponent().standardizedFileURL.path else { return }
+        guard let list, let folder = list.folder, sameFile(folder, url.deletingLastPathComponent()) else { return }
         list.insert(url)
         showCurrent()
     }

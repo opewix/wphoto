@@ -12,7 +12,13 @@ final class ImageList {
     /// Состав папки поменялся снаружи (файл добавили, удалили, переименовали).
     var onExternalChange: (() -> Void)?
 
+    /// Папка изменилась, а состав списка — нет: мог поменяться сам показанный файл.
+    var onFolderTouched: (() -> Void)?
+
     private var watcher: DispatchSourceFileSystemObject?
+    /// Файл, открытый явно, хотя сканирование папки его не берёт (скрытый, непривычное расширение):
+    /// при обновлении папки он остаётся в списке, пока существует.
+    private var pinned: URL?
     private var rescanPending = false
 
     /// Расширения, которые умеет читать ImageIO (без PDF — это не рисунок).
@@ -46,6 +52,7 @@ final class ImageList {
                 var list = Self.scan(dir)
                 if !list.contains(where: { $0.lastPathComponent == url.lastPathComponent }) {
                     // Файл с непривычным расширением открыли явно — всё равно показываем.
+                    pinned = url
                     list.append(url)
                     list.sort(by: Self.order)
                 }
@@ -162,13 +169,24 @@ final class ImageList {
     private func rescan() {
         guard let folder else { return }
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let fresh = Self.scan(folder)
-            DispatchQueue.main.async { self?.apply(fresh) }
+            var fresh = Self.scan(folder)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let pinned = self.pinned, !fresh.contains(where: { $0.path == pinned.path }),
+                   FileManager.default.fileExists(atPath: pinned.path) {
+                    fresh.append(pinned)
+                    fresh.sort(by: Self.order)
+                }
+                self.apply(fresh)
+            }
         }
     }
 
     private func apply(_ fresh: [URL]) {
-        guard fresh.map(\.path) != urls.map(\.path) else { return }
+        guard fresh.map(\.path) != urls.map(\.path) else {
+            onFolderTouched?()
+            return
+        }
         let name = current?.lastPathComponent
         let old = index
         urls = fresh

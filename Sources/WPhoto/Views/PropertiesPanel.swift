@@ -15,8 +15,17 @@ final class PropertiesPanel: NSWindowController {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    func show(_ url: URL, near parent: NSWindow?) {
+    private var shown: URL?
+
+    /// Листают при открытых свойствах — показываем свойства нового рисунка, фокус не забираем.
+    func follow(_ url: URL?) {
+        guard let url, window?.isVisible == true, url != shown else { return }
+        show(url, near: nil, activate: false)
+    }
+
+    func show(_ url: URL, near parent: NSWindow?, activate: Bool = true) {
         guard let window else { return }
+        shown = url
         window.title = L.t("Свойства: ", "Properties: ") + url.lastPathComponent
         let rows = Self.rows(url).map { label, value -> [NSView] in
             let name = NSTextField(labelWithString: label + ":")
@@ -41,11 +50,14 @@ final class PropertiesPanel: NSWindowController {
             grid.bottomAnchor.constraint(equalTo: host.bottomAnchor, constant: -18),
         ])
         window.contentView = host
+        // Верхний левый угол остаётся на месте: высота у разных рисунков разная.
+        let corner = NSPoint(x: window.frame.minX, y: window.frame.maxY)
         window.setContentSize(host.fittingSize)
+        window.setFrameTopLeftPoint(corner)
         if !window.isVisible, let parent {
             window.setFrameTopLeftPoint(NSPoint(x: parent.frame.maxX - window.frame.width - 30, y: parent.frame.maxY - 60))
         }
-        window.makeKeyAndOrderFront(nil)
+        if activate { window.makeKeyAndOrderFront(nil) }
     }
 
     static func rows(_ url: URL) -> [(String, String)] {

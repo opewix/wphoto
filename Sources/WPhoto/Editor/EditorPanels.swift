@@ -311,7 +311,8 @@ final class ResizeSheet: NSWindowController {
 
     @objc private func confirm() {
         let t = target
-        guard t.width >= 1, t.height >= 1, t.width <= 30000, t.height <= 30000 else {
+        // Больше 16384 по стороне программа и сама не открывает: такой рисунок занял бы гигабайты.
+        guard t.width >= 1, t.height >= 1, t.width <= 16384, t.height <= 16384 else {
             NSSound.beep()
             return
         }

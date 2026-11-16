@@ -69,7 +69,7 @@ enum ImageExporter {
                !(UTType(filenameExtension: url.pathExtension)?.conforms(to: format.type) ?? false) {
                 url = url.deletingPathExtension().appendingPathExtension(format.ext)
             }
-            if let original, url.standardizedFileURL.path == original.standardizedFileURL.path {
+            if let original, sameFile(url, original) {
                 let alert = NSAlert()
                 alert.messageText = L.t("Оригинал не перезаписывается", "The original is never overwritten")
                 alert.informativeText = L.t("Выберите другое имя — правки сохраняются только в копию.",
@@ -114,6 +114,10 @@ enum ImageExporter {
                     dict.removeValue(forKey: kCGImagePropertyExifPixelYDimension)
                     props[key] = dict
                 }
+            }
+            // Разрешение печати (dpi) — как у исходника, иначе скан 300 dpi стал бы 72 dpi.
+            for key in [kCGImagePropertyDPIWidth, kCGImagePropertyDPIHeight] {
+                if let dpi = original[key] { props[key] = dpi }
             }
         }
         props[kCGImagePropertyOrientation] = 1

@@ -40,6 +40,9 @@ private final class EditorContentView: NSView {
 final class EditorController: NSWindowController, NSWindowDelegate, EditorCanvasDelegate, NSMenuItemValidation {
     private static var editors: [EditorController] = []
 
+    /// Окно правки с несохранёнными правками — о нём спрашивают при выходе из программы.
+    static var firstUnsaved: EditorController? { editors.first { $0.doc.isDirty } }
+
     /// Окно правки для файла: уже открытое или новое.
     static func open(_ url: URL, quarterTurns: Int, onSaved: @escaping (URL) -> Void) -> EditorController? {
         if let existing = editors.first(where: { $0.doc.source.path == url.path }) {
@@ -328,7 +331,11 @@ final class EditorController: NSWindowController, NSWindowDelegate, EditorCanvas
     private func register(_ name: String, undo: Bool) {
         guard let manager = window?.undoManager else { return }
         manager.registerUndo(withTarget: self) { editor in
-            if undo { editor.doc.undo() } else { editor.doc.redo() }
+            // Шага уже нет (старые выбрасываются по памяти) — обратного действия не заводим.
+            guard undo ? editor.doc.undo() : editor.doc.redo() else {
+                editor.refreshUndoButtons()
+                return
+            }
             editor.register(name, undo: !undo)
             editor.refreshUndoButtons()
         }
@@ -383,7 +390,9 @@ final class EditorController: NSWindowController, NSWindowDelegate, EditorCanvas
 
     func canvasKeyDown(_ event: NSEvent) -> Bool {
         let mods = event.modifierFlags.intersection([.command, .option, .control])
-        guard mods.isEmpty, let key = event.charactersIgnoringModifiers?.lowercased() else { return false }
+        guard mods.isEmpty, var key = event.charactersIgnoringModifiers?.lowercased() else { return false }
+        // В русской раскладке клавиша «P» даёт «з»: инструмент выбираем по самой клавише.
+        if let latin = Self.latinKeys[event.keyCode] { key = latin }
         if key == "\r" || key == "\u{3}" {
             canvasApplyCrop()
             return true
@@ -398,6 +407,11 @@ final class EditorController: NSWindowController, NSWindowDelegate, EditorCanvas
         }
         return false
     }
+
+    /// Коды клавиш (не зависят от раскладки) для букв, которыми выбирают инструменты.
+    private static let latinKeys: [UInt16: String] = [
+        8: "c", 35: "p", 11: "b", 4: "h", 15: "r", 14: "e", 37: "l", 0: "a", 17: "t", 32: "u", 7: "x",
+    ]
 
     // MARK: - Команды (меню «Инструменты» и кнопки)
 
@@ -475,13 +489,17 @@ final class EditorController: NSWindowController, NSWindowDelegate, EditorCanvas
     @objc func saveAs(_ sender: Any?) {
         guard let window, !saving else { return }
         closeAdjust(apply: false)
+        // Закрыть окно после сохранения — только для этого вызова: отменили окно выбора имени,
+        // и следующее обычное сохранение окно уже не закроет.
+        let thenClose = closeAfterSave
+        closeAfterSave = false
         let base = doc.source.deletingPathExtension().lastPathComponent
         ImageExporter.runSavePanel(for: window, original: doc.source, suggestedBase: base, edited: true) { [weak self] url, format, quality in
-            self?.write(to: url, format: format, quality: quality)
+            self?.write(to: url, format: format, quality: quality, thenClose: thenClose)
         }
     }
 
-    private func write(to url: URL, format: ExportFormat, quality: Double) {
+    private func write(to url: URL, format: ExportFormat, quality: Double, thenClose: Bool) {
         saving = true
         let image = doc.image
         let source = doc.source
@@ -492,12 +510,11 @@ final class EditorController: NSWindowController, NSWindowDelegate, EditorCanvas
                 self.saving = false
                 switch result {
                 case .success:
-                    self.doc.markSaved()
-                    self.window?.isDocumentEdited = false
+                    self.doc.markSaved(image)
+                    self.window?.isDocumentEdited = self.doc.isDirty
                     self.onSaved(url)
-                    if self.closeAfterSave { self.window?.close() }
+                    if thenClose, !self.doc.isDirty { self.window?.close() }
                 case .failure(let error):
-                    self.closeAfterSave = false
                     if let window = self.window { NSAlert(error: error).beginSheetModal(for: window) }
                 }
             }

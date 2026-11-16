@@ -39,7 +39,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private func open(_ urls: [URL]) {
         let controller = urls.isEmpty ? ViewerController.make() : ViewerController.target()
         controller.open(urls)
+        // Окно на другом рабочем столе переезжает сюда, а не утаскивает человека к себе:
+        // рисунок открыли здесь — здесь его и показываем.
+        if let window = controller.window, window.isVisible, !window.isOnActiveSpace,
+           !window.styleMask.contains(.fullScreen) {
+            let behavior = window.collectionBehavior
+            window.collectionBehavior = behavior.union(.moveToActiveSpace)
+            controller.showWindow(nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { window.collectionBehavior = behavior }
+            return
+        }
         controller.showWindow(nil)
+    }
+
+    /// Выход при несохранённых правках в окне правки — сначала спросить.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let editor = EditorController.firstUnsaved else { return .terminateNow }
+        editor.showWindow(nil)
+        let alert = NSAlert()
+        alert.messageText = L.t("Есть несохранённые правки. Завершить WPhoto?", "There are unsaved edits. Quit WPhoto?")
+        alert.informativeText = L.t("Правки, не сохранённые в копию, пропадут. Оригиналы останутся без изменений.",
+                                    "Edits that were not saved to a copy will be lost. The originals stay unchanged.")
+        alert.addButton(withTitle: L.t("Отмена", "Cancel"))
+        alert.addButton(withTitle: L.t("Завершить", "Quit"))
+        return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
     }
 
     /// Пути из командной строки; `-ключ значение` — настройки, их пропускаем.
@@ -85,6 +108,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc func toggleConfirmDelete(_ sender: Any?) {
         Settings.confirmDelete.toggle()
+    }
+
+    @objc func toggleWindowsFont(_ sender: Any?) {
+        Settings.windowsFont.toggle()
+        NotificationCenter.default.post(name: Theme.changed, object: nil)
     }
 
     @objc func showAbout(_ sender: Any?) {
@@ -137,6 +165,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             item.state = (item.representedObject as? String) == Settings.wheel.rawValue ? .on : .off
         case #selector(toggleConfirmDelete(_:)):
             item.state = Settings.confirmDelete ? .on : .off
+        case #selector(toggleWindowsFont(_:)):
+            item.state = Settings.windowsFont ? .on : .off
         default:
             break
         }

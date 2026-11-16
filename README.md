@@ -35,6 +35,8 @@ or from Windows XP, if you prefer.
 - **File / Print / Share / Open / Tools** bar: make a copy, copy to the clipboard, show in Finder,
   properties with camera data, set as desktop picture, print, share, open with another app.
 - **Two themes** (View → Theme): Windows Vista / 7 and Windows XP.
+- **Windows-style font** (View → Windows-Style Font): Tahoma, which ships with macOS, or Segoe UI
+  if you have installed it yourself.
 - **One click to make it the default viewer** — see [below](#make-wphoto-your-default-picture-viewer).
 - Opens anything macOS can decode, including HEIC, WebP, AVIF and camera RAW.
 - English and Russian, following the system language.

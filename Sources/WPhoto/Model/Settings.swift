@@ -48,6 +48,11 @@ enum Settings {
         set { defaults.set(newValue, forKey: "confirmDelete") }
     }
 
+    static var windowsFont: Bool {
+        get { defaults.object(forKey: "windowsFont") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "windowsFont") }
+    }
+
     static var slideSpeed: SlideSpeed {
         get { SlideSpeed(rawValue: defaults.string(forKey: "slideSpeed") ?? "") ?? .medium }
         set { defaults.set(newValue.rawValue, forKey: "slideSpeed") }

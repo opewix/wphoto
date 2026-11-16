@@ -68,7 +68,13 @@ enum Menus {
         add(menu, L.t("Отменить", "Undo"), Selector(("undo:")), "z")
         add(menu, L.t("Повторить", "Redo"), Selector(("redo:")), "z", [.command, .shift])
         menu.addItem(.separator())
+        // Вырезать, вставить, выделить всё — для полей ввода (имя файла, размер, надпись):
+        // без пунктов меню ⌘X, ⌘V и ⌘A в них не работают.
+        add(menu, L.t("Вырезать", "Cut"), #selector(NSText.cut(_:)), "x")
         add(menu, L.t("Копировать", "Copy"), #selector(ViewerController.copy(_:)), "c")
+        add(menu, L.t("Вставить", "Paste"), #selector(NSText.paste(_:)), "v")
+        add(menu, L.t("Выделить всё", "Select All"), #selector(NSText.selectAll(_:)), "a")
+        menu.addItem(.separator())
         add(menu, L.t("Переместить в Корзину", "Move to Trash"), #selector(ViewerController.moveToTrash(_:)), "\u{8}")
         add(menu, L.t("Спрашивать перед удалением", "Ask Before Moving to Trash"), #selector(AppDelegate.toggleConfirmDelete(_:)))
         menu.addItem(.separator())
@@ -99,7 +105,9 @@ enum Menus {
         add(wheel, L.t("Меняет масштаб", "Zooms"), #selector(AppDelegate.setWheel(_:)), represented: WheelAction.zoom.rawValue)
         add(wheel, L.t("Листает рисунки", "Switches Pictures"), #selector(AppDelegate.setWheel(_:)), represented: WheelAction.navigate.rawValue)
         menu.addItem(submenu(wheel))
+        add(menu, L.t("Шрифт как в Windows", "Windows-Style Font"), #selector(AppDelegate.toggleWindowsFont(_:)))
         menu.addItem(.separator())
+        add(menu, L.t("Во весь экран", "Enter Full Screen"), #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control])
         return menu
     }
 

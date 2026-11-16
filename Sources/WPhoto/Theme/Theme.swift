@@ -16,7 +16,17 @@ enum Theme {
     static var canvasBottom: NSColor { isXP ? .white : NSColor(hex: 0xEDF2F9) }
     static var messageColor: NSColor { NSColor(hex: 0x4A5A70) }
 
-    static var font: NSFont { NSFont.systemFont(ofSize: 12) }
+    static var font: NSFont { uiFont(12) }
+
+    /// Шрифт подписей. «Шрифт как в Windows»: Tahoma (есть в macOS) для XP, Segoe UI для Vista / 7,
+    /// если человек поставил его сам, иначе тоже Tahoma. Шрифты Microsoft с программой не идут.
+    static func uiFont(_ size: CGFloat) -> NSFont {
+        guard Settings.windowsFont else { return .systemFont(ofSize: size) }
+        for name in isXP ? ["Tahoma"] : ["Segoe UI", "Tahoma"] {
+            if let font = NSFont(name: name, size: size) { return font }
+        }
+        return .systemFont(ofSize: size)
+    }
 
     // Кнопка под мышью и нажатая.
     static func drawButtonBackground(_ rect: NSRect, pressed: Bool) {

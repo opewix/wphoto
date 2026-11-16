@@ -8,8 +8,9 @@ final class EditDocument {
     private(set) var image: CGImage
     private var undoStack: [CGImage] = []
     private var redoStack: [CGImage] = []
-    /// Сколько шагов от последнего сохранения; 0 — правок нет.
-    private var changesSinceSave = 0
+    /// Рисунок, каким он сохранён (или открыт). Счётчик шагов тут не годится: сохранил, отменил
+    /// шаг и сделал другой — шагов снова столько же, а рисунок уже не тот.
+    private var savedImage: CGImage?
     var onChange: (() -> Void)?
 
     static let ciContext = CIContext(options: [.cacheIntermediates: false])
@@ -18,17 +19,20 @@ final class EditDocument {
         guard let decoded = ImageLoader.decode(url, fit: nil) else { return nil }
         source = url
         image = Self.normalized(decoded.cgImage.rotated(quarterTurns: quarterTurns))
-        changesSinceSave = quarterTurns % 4 == 0 ? 0 : 1
+        savedImage = quarterTurns % 4 == 0 ? image : nil
     }
 
     var size: CGSize { CGSize(width: image.width, height: image.height) }
     var bounds: CGRect { CGRect(origin: .zero, size: size) }
     var canUndo: Bool { !undoStack.isEmpty }
     var canRedo: Bool { !redoStack.isEmpty }
-    var isDirty: Bool { changesSinceSave != 0 }
+    var isDirty: Bool { image !== savedImage }
     var colorSpace: CGColorSpace { image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)! }
 
-    func markSaved() { changesSinceSave = 0 }
+    func markSaved() { savedImage = image }
+
+    /// Сохранён именно этот рисунок: пока писался файл, могли сделать ещё правку.
+    func markSaved(_ written: CGImage) { savedImage = written }
 
     // MARK: - Шаги
 
@@ -42,24 +46,26 @@ final class EditDocument {
             undoStack.removeFirst()
         }
         image = new
-        changesSinceSave += 1
         onChange?()
     }
 
-    func undo() {
-        guard let previous = undoStack.popLast() else { return }
+    /// false — шага нет: самые старые шаги выбрасываются, когда не помещаются в память.
+    @discardableResult
+    func undo() -> Bool {
+        guard let previous = undoStack.popLast() else { return false }
         redoStack.append(image)
         image = previous
-        changesSinceSave -= 1
         onChange?()
+        return true
     }
 
-    func redo() {
-        guard let next = redoStack.popLast() else { return }
+    @discardableResult
+    func redo() -> Bool {
+        guard let next = redoStack.popLast() else { return false }
         undoStack.append(image)
         image = next
-        changesSinceSave += 1
         onChange?()
+        return true
     }
 
     // MARK: - Холст
