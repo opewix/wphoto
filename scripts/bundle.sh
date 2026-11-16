@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 swift build -c release
 APP="build/WPhoto.app"
-VERSION="${VERSION:-0.3}"
+VERSION="${VERSION:-0.4}"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources/en.lproj" "$APP/Contents/Resources/ru.lproj"
 cp .build/release/WPhoto "$APP/Contents/MacOS/WPhoto"

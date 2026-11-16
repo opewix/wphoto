@@ -2,7 +2,7 @@
 # Собирает установочный образ build/wphoto-<версия>.dmg: приложение + ярлык «Программы».
 set -euo pipefail
 cd "$(dirname "$0")/.."
-export VERSION="${VERSION:-0.3}"
+export VERSION="${VERSION:-0.4}"
 ./scripts/bundle.sh
 
 STAGE=build/dmg
