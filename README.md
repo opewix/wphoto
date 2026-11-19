@@ -4,6 +4,12 @@ A Windows-style picture viewer for macOS: open a picture and flip through the wh
 arrow keys. Fast, simple, and it looks like the photo viewer you remember from Windows Vista / 7 —
 or from Windows XP, if you prefer.
 
+> **Windows-style utilities for macOS** — one set, each works on its own:  
+> [WExplorer](https://github.com/opewix/wexplorer) — file manager  
+> [WTaskbar](https://github.com/opewix/wtaskbar) — taskbar and Start menu instead of the Dock  
+> **WPhoto** — picture viewer  
+> [WTortoise](https://github.com/opewix/wtortoise) — Git in the right-click menu, like TortoiseGit
+
 ![WPhoto in the Windows Vista / 7 theme](reference/window-vista.png)
 
 ![WPhoto in the Windows XP theme](reference/window-xp.png)
